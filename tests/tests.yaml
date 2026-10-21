@@ -20,6 +20,7 @@
   - tests/platforms/SiFive-FU540.robot
 
 - tests/peripherals/INA228.robot
+- tests/peripherals/XMC4500_MultiCAN.robot
 - tests/peripherals/XMC4XXX.robot
 - tests/peripherals/SDCard.robot
 - tests/peripherals/VEML7700.robot
