@@ -22,6 +22,7 @@
 - tests/peripherals/INA228.robot
 - tests/peripherals/XMC4500_MultiCAN.robot
 - tests/peripherals/XMC4XXX.robot
+- tests/unit-tests/hcs12.robot
 - tests/peripherals/SDCard.robot
 - tests/peripherals/VEML7700.robot
 - tests/peripherals/STM32LTDC.robot

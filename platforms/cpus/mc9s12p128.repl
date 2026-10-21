@@ -1,0 +1,44 @@
+// MC9S12P128 - Freescale/NXP 16-bit S12 MCU
+// CPU12 core, 128KB P-Flash, 4KB D-Flash, 6KB RAM
+// Big-endian, PPAGE bank switching for flash >64KB
+
+cpu: CPU.HCS12 @ sysbus
+    cpuType: "hcs12"
+
+// I/O registers 0x0000-0x03FF handled internally by HCS12 CPU
+// except MSCAN which is a separate peripheral on the sysbus
+
+mscan: CAN.S12MSCAN @ sysbus 0x0140
+    RxIRQ -> cpu@38
+    TxIRQ -> cpu@39
+
+// D-Flash: 0x0400-0x13FF (4KB)
+dflash: Memory.ArrayMemory @ sysbus 0x0400
+    size: 0x1000
+
+// RAM: the MC9S12P128 has 6 KB ending at 0x3FFF; mapping 8 KB from 0x2000
+// also covers the other P-family parts
+ram: Memory.ArrayMemory @ sysbus 0x2000
+    size: 0x2000
+
+// P-Flash in local address space:
+// 0x4000-0x7FFF: unpaged (global page 0x0D = 0x34000-0x37FFF)
+// 0x8000-0xBFFF: paged window (selected by PPAGE register)
+// 0xC000-0xFFFF: unpaged (global page 0x0F = 0x3C000-0x3FFFF, includes vectors)
+// The CPU reads all flash through pflash_global below; these local regions
+// only absorb CPU writes to the flash windows.
+
+pflash_4000: Memory.ArrayMemory @ sysbus 0x4000
+    size: 0x4000
+
+pflash_8000: Memory.ArrayMemory @ sysbus 0x8000
+    size: 0x4000
+
+pflash_c000: Memory.ArrayMemory @ sysbus 0xC000
+    size: 0x4000
+
+// P-Flash global address space: load images here (e.g. sysbus LoadSRecord)
+// MC9S12P128: 128KB at global 0x020000-0x03FFFF
+// The CPU reads from this region via PPAGE-based address translation
+pflash_global: Memory.ArrayMemory @ sysbus 0x020000
+    size: 0x20000
