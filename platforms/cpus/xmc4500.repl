@@ -1,0 +1,223 @@
+
+flash: Memory.MappedMemory @ sysbus 0x08000000
+    size: 0x100000
+
+    //-PMU/FLASH (uncached)
+uflash: Memory.MappedMemory @ sysbus 0x0C000000
+    size: 0x100000
+
+    //-PSRAM (code)
+psram: Memory.MappedMemory @ sysbus 0x10000000
+    size: 0x00010000
+
+    //-DSRAM1 (system)
+dsram1: Memory.MappedMemory @ sysbus 0x20000000
+    size: 0x00010000
+
+    //-DSRAM2 (comm)
+dsram2: Memory.MappedMemory @ sysbus 0x30000000
+    size: 0x00008000
+
+    /* Peripherals 0
+        40000000 40003FFF PBA0
+        40004000 40007FFF VADC
+        40008000 4000BFFF DSD
+        4000C000 4000FFFF CCU40
+        40010000 40013FFF CCU41
+        40014000 40017FFF CCU42
+        40020000 40023FFF CCU80
+        40024000 40027FFF CCU81
+        40028000 4002BFFF POSIF0
+        4002C000 4002FFFF POSIF1
+        40030000 40033FFF USIC0
+        40044000 40047FFF ERU1
+        40048000 47FFFFFF reserved */
+
+// VADC — Versatile Analog-to-Digital Converter (4 groups, 8 channels each)
+// SRN 0-3 → NVIC IRQs 14-17 (VADC0_C0_0 through VADC0_C0_3)
+vadc: Analog.XMC4XXX_VADC @ sysbus 0x40004000
+    [0-3] -> nvic@[14-17]
+
+// CCU40 — stub
+ccu40: Memory.MappedMemory @ sysbus 0x4000C000
+    size: 0x00004000
+
+// CCU41 — stub
+ccu41: Memory.MappedMemory @ sysbus 0x40010000
+    size: 0x00004000
+
+// CCU42 — stub
+ccu42: Memory.MappedMemory @ sysbus 0x40014000
+    size: 0x00004000
+
+// CCU80 — stub
+ccu80: Memory.MappedMemory @ sysbus 0x40020000
+    size: 0x00004000
+
+// CCU81 — stub
+ccu81: Memory.MappedMemory @ sysbus 0x40024000
+    size: 0x00004000
+
+// USIC0 — two channels, each 0x200 bytes; 6 shared service-request nodes → nvic@[84-89]
+usic0ch0: UART.XMC4XXX_UART @ sysbus 0x40030000
+    IRQ0 -> nvic@84
+    IRQ1 -> nvic@85
+    IRQ2 -> nvic@86
+    IRQ3 -> nvic@87
+    IRQ4 -> nvic@88
+    IRQ5 -> nvic@89
+
+usic0ch1: UART.XMC4XXX_UART @ sysbus 0x40030200
+    IRQ0 -> nvic@84
+    IRQ1 -> nvic@85
+    IRQ2 -> nvic@86
+    IRQ3 -> nvic@87
+    IRQ4 -> nvic@88
+    IRQ5 -> nvic@89
+
+eru1: Memory.MappedMemory @ sysbus 0x40044000
+    size: 0x00004000
+
+    /* Peripherals 1
+        48000000 48003FFF PBA1
+        48004000 48007FFF CCU43
+        48010000 48013FFF LEDTS0
+        48014000 48017FFF CAN
+        48018000 4801BFFF DAC
+        4801C000 4801FFFF SDMMC
+        48020000 48023FFF USIC1
+        48024000 48027FFF USIC2
+        48028000 4802BFFF PORTS */
+
+// CCU43 — stub
+ccu43: Memory.MappedMemory @ sysbus 0x48004000
+    size: 0x00004000
+
+// LEDTS0 — stub
+ledts0: Memory.MappedMemory @ sysbus 0x48010000
+    size: 0x00004000
+
+can: CAN.XMC4500_MultiCAN @ sysbus 0x48014000
+    [0-7] -> nvic@[76-83]
+
+// USIC1 — service-request nodes → nvic@[90-95]
+usic1ch0: UART.XMC4XXX_UART @ sysbus 0x48020000
+    IRQ0 -> nvic@90
+    IRQ1 -> nvic@91
+    IRQ2 -> nvic@92
+    IRQ3 -> nvic@93
+    IRQ4 -> nvic@94
+    IRQ5 -> nvic@95
+
+usic1ch1: UART.XMC4XXX_UART @ sysbus 0x48020200
+    IRQ0 -> nvic@90
+    IRQ1 -> nvic@91
+    IRQ2 -> nvic@92
+    IRQ3 -> nvic@93
+    IRQ4 -> nvic@94
+    IRQ5 -> nvic@95
+
+// USIC2 — service-request nodes → nvic@[96-101]
+usic2ch0: UART.XMC4XXX_UART @ sysbus 0x48024000
+    IRQ0 -> nvic@96
+    IRQ1 -> nvic@97
+    IRQ2 -> nvic@98
+    IRQ3 -> nvic@99
+    IRQ4 -> nvic@100
+    IRQ5 -> nvic@101
+
+usic2ch1: UART.XMC4XXX_UART @ sysbus 0x48024200
+    IRQ0 -> nvic@96
+    IRQ1 -> nvic@97
+    IRQ2 -> nvic@98
+    IRQ3 -> nvic@99
+    IRQ4 -> nvic@100
+    IRQ5 -> nvic@101
+
+// All nine GPIO ports (P0–P6, P14, P15) in a single peripheral.
+// Pin connections: port N × 16 + pin (P14=index 7, P15=index 8).
+ports: GPIOPort.XMC4XXX_GPIOPort @ sysbus 0x48028000
+
+    /* Peripherals 2
+        50000000 50003FFF PBA2
+        50004000 50007FFF SCU & RTC
+        50008000 5000BFFF WDT
+        5000C000 5000FFFF ETH
+        50010000 50013FFF reserved
+        50014000 50017FFF DMA0
+        50018000 5001BFFF DMA1
+        5001C000 5001FFFF reserved
+        50020000 50023FFF FCE
+        50024000 5003FFFF reserved
+        50040000 5007FFFF USB
+        50080000 57FFFFFF reserved */
+
+scu: Miscellaneous.XMC4XXX_SCU @ sysbus 0x50004000
+
+// Remaining SCU sub-blocks not yet modeled (TRAP, PARITY, RTC, etc.)
+scuMisc: Memory.MappedMemory @ sysbus 0x50005000
+    size: 0x00003000
+
+wdt: Timers.XMC4XXX_WDT @ sysbus 0x50008000
+
+eth: Memory.MappedMemory @ sysbus 0x5000C000
+    size: 0x00004000
+
+dma0: Memory.MappedMemory @ sysbus 0x50014000
+    size: 0x00004000
+
+dma1: Memory.MappedMemory @ sysbus 0x50018000
+    size: 0x00004000
+
+usb: Memory.MappedMemory @ sysbus 0x50040000
+    size: 0x00040000
+
+    /* Peripherals 3 */
+// FLASH0 controller registers sit at 0x58002000 (SVD base 0x58001000 +
+// register offsets 0x10xx, e.g. FCON at 0x58002014). Back the region below
+// it as plain memory and register the controller at its real base.
+pmu0Base: Memory.MappedMemory @ sysbus 0x58000000
+    size: 0x00002000
+
+flash0: MTD.XMC4XXX_FlashController @ sysbus 0x58002000
+    flash: flash
+
+pmu0Prefetch: Memory.MappedMemory @ sysbus 0x58004000
+    size: 0x00004000
+
+ebu: Memory.MappedMemory @ sysbus 0x58008000
+    size: 0x00004000
+
+    /* External SRAM */
+ebuMemCs0: Memory.MappedMemory @ sysbus 0x60000000
+    size: 0x04000000
+
+ebuMemCs1: Memory.MappedMemory @ sysbus 0x64000000
+    size: 0x04000000
+
+ebuMemCs2: Memory.MappedMemory @ sysbus 0x68000000
+    size: 0x04000000
+
+ebuMemCs3: Memory.MappedMemory @ sysbus 0x6C000000
+    size: 0x04000000
+
+    /* External Device */
+ebuDevCs0: Memory.MappedMemory @ sysbus 0xA0000000
+    size: 0x04000000
+
+ebuDevCs1: Memory.MappedMemory @ sysbus 0xA4000000
+    size: 0x04000000
+
+ebuDevCs2: Memory.MappedMemory @ sysbus 0xA8000000
+    size: 0x04000000
+
+ebuDevCs3: Memory.MappedMemory @ sysbus 0xAC000000
+    size: 0x04000000
+
+nvic: IRQControllers.NVIC @ sysbus 0xE000E000
+    systickFrequency: 72000000
+    IRQ -> cpu@0
+
+cpu: CPU.CortexM @ sysbus
+    cpuType: "cortex-m4"
+    nvic: nvic
