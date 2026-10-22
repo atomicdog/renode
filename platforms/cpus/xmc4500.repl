@@ -38,17 +38,14 @@ dsram2: Memory.MappedMemory @ sysbus 0x30000000
 vadc: Analog.XMC4XXX_VADC @ sysbus 0x40004000
     [0-3] -> nvic@[14-17]
 
-// CCU40 — stub
-ccu40: Memory.MappedMemory @ sysbus 0x4000C000
-    size: 0x00004000
+// CCU40 — registers and shadow transfers; the timers do not count
+ccu40: Timers.XMC4XXX_CCU4 @ sysbus 0x4000C000
 
-// CCU41 — stub
-ccu41: Memory.MappedMemory @ sysbus 0x40010000
-    size: 0x00004000
+// CCU41 — registers and shadow transfers; the timers do not count
+ccu41: Timers.XMC4XXX_CCU4 @ sysbus 0x40010000
 
-// CCU42 — stub
-ccu42: Memory.MappedMemory @ sysbus 0x40014000
-    size: 0x00004000
+// CCU42 — registers and shadow transfers; the timers do not count
+ccu42: Timers.XMC4XXX_CCU4 @ sysbus 0x40014000
 
 // CCU80 — stub
 ccu80: Memory.MappedMemory @ sysbus 0x40020000
@@ -89,9 +86,8 @@ eru1: Memory.MappedMemory @ sysbus 0x40044000
         48024000 48027FFF USIC2
         48028000 4802BFFF PORTS */
 
-// CCU43 — stub
-ccu43: Memory.MappedMemory @ sysbus 0x48004000
-    size: 0x00004000
+// CCU43 — registers and shadow transfers; the timers do not count
+ccu43: Timers.XMC4XXX_CCU4 @ sysbus 0x48004000
 
 // LEDTS0 — stub
 ledts0: Memory.MappedMemory @ sysbus 0x48010000
