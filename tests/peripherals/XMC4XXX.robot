@@ -64,6 +64,37 @@ Create Machine With LTC6812
     Execute Command               machine LoadPlatformDescriptionFromString "ltc: SPI.LTC6812 @ usic1ch1"
     Execute Command               cpu IsHalted true
 
+Create Machine With A Timed SPI Master
+    [Arguments]                   ${stalls}
+    Execute Command               mach create
+    ${platform}=                  Catenate  SEPARATOR=\n
+    ...                           using "platforms/cpus/xmc4500.repl"
+    ...                           usic1ch1:
+    ...                           ${SPACE*4}peripheralClockFrequency: 120000000
+    ...                           ${SPACE*4}SpiTimingStallsCpu: ${stalls}
+    ...                           ltc: SPI.LTC6812 @ usic1ch1
+    Execute Command               machine LoadPlatformDescriptionFromString '${platform}'
+    # USIC1_CH1 FDR, BRG, SCTR, PCR, CCR: SSC mode, 1 MHz SCLK from fPB = 120 MHz (FDR 0.75, PDIV 44), 8-bit
+    # one-word frames with MSLS and inter-word delays: 14 us per word
+    Execute Command               sysbus WriteDoubleWord 0x48020210 0x8300
+    Execute Command               sysbus WriteDoubleWord 0x48020214 0x002C0500
+    Execute Command               sysbus WriteDoubleWord 0x48020234 0x07070000
+    Execute Command               sysbus WriteDoubleWord 0x4802023C 0x01000127
+    Execute Command               sysbus WriteDoubleWord 0x48020240 0x1
+    # ldr r0, [pc, #8]; movs r1, #0x55; str r1, [r0]; 1: adds r2, #1; b 1b;
+    # nop; .word TBUF00 (a counting loop: tlib idles on a branch to itself)
+    Execute Command               sysbus WriteDoubleWord 0x20000000 0x21554802
+    Execute Command               sysbus WriteDoubleWord 0x20000004 0x32016001
+    Execute Command               sysbus WriteDoubleWord 0x20000008 0xBF00E7FD
+    Execute Command               sysbus WriteDoubleWord 0x2000000C 0x48020280
+    Execute Command               cpu PerformanceInMips 100
+    Execute Command               cpu PC 0x20000000
+
+Instructions Executed In 100 us
+    Execute Command               emulation RunFor "0.0001"
+    ${n}=                         Execute Command  cpu ExecutedInstructions
+    RETURN                        ${n.strip()}
+
 Send LTC6812 Bytes
     [Arguments]                   @{bytes}
     FOR  ${b}  IN  @{bytes}
@@ -252,3 +283,14 @@ Should Take The LTC6812 Conversion Time Of The Selected ADC Mode
     LTC6812 SDO Should Read       0x00
     Execute Command               emulation RunFor "0.001"
     LTC6812 SDO Should Read       0xFF
+
+Should Stall The CPU For An SPI Word When SpiTimingStallsCpu Is Set
+    Create Machine With A Timed SPI Master  true
+    ${n}=                         Instructions Executed In 100 us
+    # 100 MIPS for 100 us, less the 14 us word
+    Should Be Equal As Integers   ${n}  8600
+
+Should Not Stall The CPU For A Timed SPI Word By Default
+    Create Machine With A Timed SPI Master  false
+    ${n}=                         Instructions Executed In 100 us
+    Should Be Equal As Integers   ${n}  10000
