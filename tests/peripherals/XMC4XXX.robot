@@ -30,6 +30,7 @@ ${CCU40_CC41_PR}                0x4000C230
 ${CCU40_CC41_PRS}               0x4000C234
 
 ${ADS79XX}                      sysbus.usic0ch0.adc
+${LTC6812}                      sysbus.usic1ch1.ltc
 
 *** Keywords ***
 Create Machine
@@ -57,6 +58,22 @@ ADS79xx GPIO Should Be
     [Arguments]                   ${pin}  ${expected}
     ${state}=                     Execute Command  python "print(self.Machine['${ADS79XX}'].Connections[${pin}].IsSet)"
     Should Be Equal               ${state.strip()}  ${expected}
+
+Create Machine With LTC6812
+    Create Machine                ${XMC4500_REPL}
+    Execute Command               machine LoadPlatformDescriptionFromString "ltc: SPI.LTC6812 @ usic1ch1"
+    Execute Command               cpu IsHalted true
+
+Send LTC6812 Bytes
+    [Arguments]                   @{bytes}
+    FOR  ${b}  IN  @{bytes}
+        Execute Command           ${LTC6812} Transmit ${b}
+    END
+
+LTC6812 SDO Should Read
+    [Arguments]                   ${expected}
+    ${b}=                         Execute Command  ${LTC6812} Transmit 0x00
+    Should Be Equal As Integers   ${b.strip()}  ${expected}
 
 Load CCU40 Slice 0 Period And Compare
     [Arguments]                   ${period}  ${compare}
@@ -215,3 +232,23 @@ Should Output TI ADS79xx GPIO Levels On DO15-12 When DI04 Is Set
     Should Be Equal As Integers   ${b}  0x00
     ${b}=                         Send ADS79xx Frame  0x00  0x00
     Should Be Equal As Integers   ${b}  0x10
+
+Should Hold LTC6812 SDO Low During PLADC Until The Conversion Ends
+    Create Machine With LTC6812
+    # ADCV, all cells, 7kHz mode (MD = 10): 1956 us; then PLADC
+    Send LTC6812 Bytes            0x03  0x60  0xF4  0x6C
+    Send LTC6812 Bytes            0x07  0x14  0xF3  0x6C
+    LTC6812 SDO Should Read       0x00
+    Execute Command               emulation RunFor "0.001"
+    LTC6812 SDO Should Read       0x00
+    Execute Command               emulation RunFor "0.001"
+    LTC6812 SDO Should Read       0xFF
+
+Should Take The LTC6812 Conversion Time Of The Selected ADC Mode
+    Create Machine With LTC6812
+    # ADCV, all cells, 27kHz mode (MD = 01): 937 us
+    Send LTC6812 Bytes            0x02  0xE0  0x38  0x06
+    Send LTC6812 Bytes            0x07  0x14  0xF3  0x6C
+    LTC6812 SDO Should Read       0x00
+    Execute Command               emulation RunFor "0.001"
+    LTC6812 SDO Should Read       0xFF
