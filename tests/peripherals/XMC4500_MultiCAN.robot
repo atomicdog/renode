@@ -535,3 +535,38 @@ Should Support Full MSID RX Processing Loop
     # Step 9: Read MSID[0] → should return 0x20 (no more pending)
     ${msid}=                      Read Register Value  ${MSID0}
     Should Be Equal As Integers   ${msid}  0x20
+
+Should Pulse The RX Interrupt Line Once Per Frame Without Holding It
+    [Documentation]               MultiCAN service requests are pulses: RXPND left set by a handler
+    ...                           that returns early must not keep the line asserted
+    Create Machine
+    # Count rising edges on interrupt line 3
+    Execute Command               python "pulses = [0]; line3 = self.Machine['sysbus.can'].Connections[3]; line3.AddStateChangedHook(lambda state: pulses.__setitem__(0, pulses[0] + (1 if state else 0)))"
+    Enable Module
+
+    # Node 0: CCE=1, INIT=1
+    Write CAN Register            ${N0CR}  0x00000041
+    Allocate MO To List           0  1
+    Allocate MO To List           1  1
+    Setup TX MO0                  0x123  0x11111111
+    Setup RX MO1                  0x123
+    # MO1: RXIE (MOFCR bit 16), RXINP = 3
+    Write CAN Register            ${MO1FCR}  0x00010000
+    Write CAN Register            ${MO1IPR}  0x00000003
+
+    # Loopback, clear INIT
+    Write CAN Register            ${N0CR}  0x00001000
+
+    Trigger TX MO0
+    Assert Bits Set               ${MO1STAT}  ${0x001}
+    ${count}=                     Execute Command  python "print(pulses[0])"
+    Should Be Equal As Integers   ${count}  1
+    ${state}=                     Execute Command  python "print(line3.IsSet)"
+    Should Be Equal               ${state}  False  strip_spaces=True
+
+    # A second frame with RXPND still set pulses again
+    Wait For Bus Idle
+    Trigger TX MO0
+    Wait For Bus Idle
+    ${count}=                     Execute Command  python "print(pulses[0])"
+    Should Be Equal As Integers   ${count}  2
