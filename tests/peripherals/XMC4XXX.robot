@@ -294,3 +294,16 @@ Should Not Stall The CPU For A Timed SPI Word By Default
     Create Machine With A Timed SPI Master  false
     ${n}=                         Instructions Executed In 100 us
     Should Be Equal As Integers   ${n}  10000
+
+Should Read Back The LTC6812 Cell Inputs
+    Create Machine With LTC6812
+    ${n}=                         Execute Command  ${LTC6812} CellsPerDevice
+    Should Be Equal As Integers   ${n.strip()}  15
+    ${n}=                         Execute Command  ${LTC6812} NumberOfDevices
+    Should Be Equal As Integers   ${n.strip()}  1
+    # Reset: 3.6 V on every input
+    ${mv}=                        Execute Command  ${LTC6812} GetCellMillivolts 15
+    Should Be Equal As Integers   ${mv.strip()}  3600
+    Execute Command               ${LTC6812} SetCellMillivolts 7 3456
+    ${mv}=                        Execute Command  ${LTC6812} GetCellMillivolts 7
+    Should Be Equal As Integers   ${mv.strip()}  3456
