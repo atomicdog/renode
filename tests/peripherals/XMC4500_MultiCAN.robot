@@ -61,6 +61,12 @@ ${MSPND0}                       0x140
 Create Machine
     Execute Command               mach create
     Execute Command               machine LoadPlatformDescriptionFromString "${CAN_REPL}"
+    # Nothing is connected to the nodes here: complete frames anyway
+    Execute Command               can AcknowledgeUnconnectedNodes true
+
+Create Machine With Nothing On The Bus
+    Execute Command               mach create
+    Execute Command               machine LoadPlatformDescriptionFromString "${CAN_REPL}"
 
 Write CAN Register
     [Arguments]                   ${offset}  ${value}
@@ -256,6 +262,60 @@ Should Report A Transmit Only When The Frame Has Left The Bus
     Assert Bits Set               ${MO0STAT}  ${0x002}
     Assert Bits Set               ${N0SR}  ${0x08}
 
+Should Retry A Frame Nobody Acknowledges And Go Error Passive
+    [Documentation]               With nothing on the bus every attempt ends in an ACK error: TXRQ stays set,
+    ...                           TEC rises by 8 per attempt to the error-passive limit and stays there
+    Create Machine With Nothing On The Bus
+    Enable Module
+    # Node 0: CCE=1, INIT=1, LECIE + ALIE; LECINP = 1, ALINP = 2
+    Write CAN Register            ${N0CR}  0x0000004D
+    Write CAN Register            ${N0IPR}  0x00000012
+    Execute Command               python "lec = [0]; alert = [0]; c = self.Machine['sysbus.can'].Connections; c[1].AddStateChangedHook(lambda s: lec.__setitem__(0, lec[0] + (1 if s else 0))); c[2].AddStateChangedHook(lambda s: alert.__setitem__(0, alert[0] + (1 if s else 0)))"
+    Allocate MO To List           0  1
+    Setup TX MO0                  0x123  0x11111111
+    Write CAN Register            ${N0CR}  0x0000000C
+    Trigger TX MO0
+
+    # One attempt (8-byte frame at 2 us per bit): ACK error, TEC 8, LETD + LEINC
+    Execute Command               emulation RunFor "0.00022"
+    Assert Bits Set               ${MO0STAT}  ${0x100}
+    Assert Bits Clear             ${MO0STAT}  ${0x002}
+    ${sr}=                        Read Register Value  ${N0SR}
+    ${lec}=                       Evaluate  ${sr} & 0x7
+    Should Be Equal As Integers   ${lec}  3
+    Assert Register Equals        0x214  0x03600800
+    ${n}=                         Execute Command  python "print(lec[0])"
+    Should Be Equal As Integers   ${n.strip()}  1
+
+    # 16 attempts take TEC to 128; it stays there, error passive, with EWRN
+    # (raised at 96, with one alert)
+    Execute Command               emulation RunFor "0.01"
+    ${ecnt}=                      Read Register Value  0x214
+    ${tec}=                       Evaluate  (${ecnt} >> 8) & 0xFF
+    Should Be Equal As Integers   ${tec}  128
+    Assert Bits Set               ${N0SR}  ${0x60}
+    Assert Bits Clear             ${N0SR}  ${0x88}
+    Assert Bits Set               ${MO0STAT}  ${0x100}
+    ${n}=                         Execute Command  python "print(alert[0])"
+    Should Be Equal As Integers   ${n.strip()}  1
+
+Should Send A Waiting Frame Once A Listener Appears
+    Create Machine With Nothing On The Bus
+    Enable Module
+    Write CAN Register            ${N0CR}  0x00000041
+    Allocate MO To List           0  1
+    Setup TX MO0                  0x123  0x11111111
+    Write CAN Register            ${N0CR}  0x00000000
+    Trigger TX MO0
+    Execute Command               emulation RunFor "0.001"
+    Assert Bits Set               ${MO0STAT}  ${0x100}
+    Execute Command               python "got = []; self.Machine['sysbus.can'].Node0.FrameSent += lambda f: got.append(f.Id)"
+    Execute Command               emulation RunFor "0.001"
+    Assert Bits Clear             ${MO0STAT}  ${0x100}
+    Assert Bits Set               ${MO0STAT}  ${0x002}
+    ${ids}=                       Execute Command  python "print(got)"
+    Should Contain                ${ids}  291
+
 Should Set NSR TXOK And Fire Transfer Interrupt On TX
     [Documentation]               After TX, NSR.TXOK should be set when TRIE is enabled
     Create Machine
@@ -263,8 +323,8 @@ Should Set NSR TXOK And Fire Transfer Interrupt On TX
 
     # Node 0: CCE=1, TRIE=1, INIT=1
     Write CAN Register            ${N0CR}  0x00000043
-    # Set TRINP=3 in NIPR (bits [2:0])
-    Write CAN Register            ${N0IPR}  0x00000003
+    # Set TRINP=3 in NIPR (bits [10:8])
+    Write CAN Register            ${N0IPR}  0x00000300
 
     # Allocate and configure MO0 for TX
     Allocate MO To List           0  1
