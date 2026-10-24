@@ -96,6 +96,15 @@ Load One SPI Word Program
     Execute Command               sysbus WriteDoubleWord 0x20000008 0xBF00E7FD
     Execute Command               sysbus WriteDoubleWord 0x2000000C 0x48020280
 
+Count Pulses On USIC1_CH1 Service Request
+    [Arguments]                   ${node}
+    Execute Command               python "pulses = [0]; self.Machine['sysbus.usic1ch1'].IRQ${node}.AddStateChangedHook(lambda state: pulses.__setitem__(0, pulses[0] + (1 if state else 0)))"
+
+Pulses Should Be
+    [Arguments]                   ${expected}
+    ${n}=                         Execute Command  python "print(pulses[0])"
+    Should Be Equal As Integers   ${n.strip()}  ${expected}
+
 Instructions Executed In 100 us
     Execute Command               cpu PC 0x20000000
     Execute Command               emulation RunFor "0.0001"
@@ -342,6 +351,35 @@ Should Start A Back To Back SPI Word After The Previous Word's Delays
     # The second word starts when the first one's trailing and inter-word
     # delays end (14 us) and is received 10 us later: the CPU runs 76 us
     Should Be Equal As Integers   ${n}  7600
+
+Should Raise The Transmit Buffer Interrupt When A Word Enters The Shifter
+    Create Machine With A Timed SPI Master  false
+    Execute Command               cpu IsHalted true
+    # INPR.TBINP = 2; CCR: SSC mode + TBIEN
+    Execute Command               sysbus WriteDoubleWord 0x48020218 0x20
+    Count Pulses On USIC1_CH1 Service Request  2
+    Execute Command               sysbus WriteDoubleWord 0x48020240 0x2001
+    # Enabling TBIEN with TBUF empty raises nothing: it is an event
+    Pulses Should Be              0
+    Execute Command               sysbus WriteDoubleWord 0x48020280 0x55
+    Pulses Should Be              1
+    # The second word waits for the shifter: its 14 us word ends first
+    Execute Command               sysbus WriteDoubleWord 0x48020280 0xAA
+    Pulses Should Be              1
+    Execute Command               emulation RunFor "0.000013"
+    Pulses Should Be              1
+    Execute Command               emulation RunFor "0.000002"
+    Pulses Should Be              2
+
+Should Pulse A Service Request On An FMR SIO Write
+    Create Machine With A Timed SPI Master  false
+    Execute Command               cpu IsHalted true
+    Count Pulses On USIC1_CH1 Service Request  1
+    # FMR.SIO1 (bit 17) activates SR1
+    Execute Command               sysbus WriteDoubleWord 0x48020268 0x20000
+    Pulses Should Be              1
+    Execute Command               sysbus WriteDoubleWord 0x48020268 0x10000
+    Pulses Should Be              1
 
 Should Not Stall The CPU For A Timed SPI Word By Default
     Create Machine With A Timed SPI Master  false

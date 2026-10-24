@@ -150,8 +150,8 @@ Trigger TX
     Write CAN Register            ${stat_offset}  0x01000000
 
 Wait For Bus Idle
-    [Documentation]               Let virtual time pass so a TX deferred behind the previous frame goes out
-    ...                           (8-byte standard frame at the default 2 us bit time: 222 us)
+    [Documentation]               Let virtual time pass so the frame on the bus completes and a TX deferred
+    ...                           behind it goes out (8-byte standard frame at the default 2 us bit time: 222 us)
     Execute Command               emulation RunFor "0.001"
 
 Read Register Value
@@ -217,6 +217,7 @@ Should Suppress TX When Node INIT Is Set
 
     # Try TX with INIT=1 — should be suppressed
     Trigger TX MO0
+    Wait For Bus Idle
 
     # TXRQ (bit 8) should still be set, TXPND (bit 1) should NOT be set
     Assert Bits Set               ${MO0STAT}  ${0x100}
@@ -228,10 +229,32 @@ Should Suppress TX When Node INIT Is Set
     # Clear TXRQ then re-trigger
     Write CAN Register            ${MO0STAT}  0x00000100
     Trigger TX MO0
+    Wait For Bus Idle
 
     # TXRQ (bit 8) should be cleared, TXPND (bit 1) should be set
     Assert Bits Clear             ${MO0STAT}  ${0x100}
     Assert Bits Set               ${MO0STAT}  ${0x002}
+
+Should Report A Transmit Only When The Frame Has Left The Bus
+    [Documentation]               TXRQ stays set and TXPND/TXOK stay clear while the frame is on the bus
+    Create Machine
+    Enable Module
+    Write CAN Register            ${N0CR}  0x00000041
+    Allocate MO To List           0  1
+    Setup TX MO0                  0x123  0x11111111
+    Write CAN Register            ${N0CR}  0x00000000
+    Trigger TX MO0
+
+    # 8-byte standard frame at the default 2 us bit time: its end of frame
+    # comes 216 us after the start (222 us with the interframe space)
+    Execute Command               emulation RunFor "0.00021"
+    Assert Bits Set               ${MO0STAT}  ${0x100}
+    Assert Bits Clear             ${MO0STAT}  ${0x002}
+    Assert Bits Clear             ${N0SR}  ${0x08}
+    Execute Command               emulation RunFor "0.00001"
+    Assert Bits Clear             ${MO0STAT}  ${0x100}
+    Assert Bits Set               ${MO0STAT}  ${0x002}
+    Assert Bits Set               ${N0SR}  ${0x08}
 
 Should Set NSR TXOK And Fire Transfer Interrupt On TX
     [Documentation]               After TX, NSR.TXOK should be set when TRIE is enabled
@@ -252,6 +275,7 @@ Should Set NSR TXOK And Fire Transfer Interrupt On TX
 
     # Transmit
     Trigger TX MO0
+    Wait For Bus Idle
 
     # NSR.TXOK (bit 3) should be set
     Assert Bits Set               ${N0SR}  ${0x08}
@@ -279,6 +303,7 @@ Should Receive Frame Via Loopback Mode
 
     # Transmit on MO0
     Trigger TX MO0
+    Wait For Bus Idle
 
     # MO0: TXPND (bit 1) should be set
     Assert Bits Set               ${MO0STAT}  ${0x002}
@@ -316,6 +341,7 @@ Should Isolate Nodes In Loopback Mode
 
     # Transmit on MO0 (node 0)
     Trigger TX MO0
+    Wait For Bus Idle
 
     # MO0 on node 0: TX should succeed
     Assert Bits Set               ${MO0STAT}  ${0x002}
@@ -350,6 +376,7 @@ Should Set MSGLST On Double Receive Without Clearing NEWDAT
 
     # First transmit — should set NEWDAT on MO1
     Trigger TX MO0
+    Wait For Bus Idle
     Assert Bits Set               ${MO1STAT}  ${0x008}
     Assert Bits Clear             ${MO1STAT}  ${0x010}
     Assert Register Equals        ${MO1DATAL}  0x11111111
@@ -360,7 +387,7 @@ Should Set MSGLST On Double Receive Without Clearing NEWDAT
     # Second transmit WITHOUT clearing NEWDAT on MO1
     Trigger TX MO0
 
-    # The first frame still occupies the bus, so the second is deferred
+    # The frame is still on the bus: nothing has been received yet
     Assert Bits Clear             ${MO1STAT}  ${0x010}
     Wait For Bus Idle
 
@@ -400,6 +427,7 @@ Should Set MSPND Bit On RX
 
     # Transmit
     Trigger TX MO0
+    Wait For Bus Idle
 
     # MSPND[2] (offset 0x148) bit 5 should be set
     Assert Bits Set               0x148  ${0x020}
@@ -441,6 +469,7 @@ Should Clear NSR TXOK And RXOK Via Write 1 To Clear
 
     # TX → sets TXOK and RXOK (loopback triggers RX too)
     Trigger TX MO0
+    Wait For Bus Idle
     Assert Bits Set               ${N0SR}  ${0x08}
     Assert Bits Set               ${N0SR}  ${0x10}
 
@@ -558,6 +587,7 @@ Should Pulse The RX Interrupt Line Once Per Frame Without Holding It
     Write CAN Register            ${N0CR}  0x00001000
 
     Trigger TX MO0
+    Wait For Bus Idle
     Assert Bits Set               ${MO1STAT}  ${0x001}
     ${count}=                     Execute Command  python "print(pulses[0])"
     Should Be Equal As Integers   ${count}  1
