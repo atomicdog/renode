@@ -150,6 +150,32 @@ Should Load XMC4500 Platform
 Should Load XMC4800 Platform
     Create Machine                ${XMC4800_REPL}
 
+Should Count The RTC From A Preset Time
+    Create Machine                ${XMC4500_REPL}
+    Execute Command               scu RtcTime "2026-10-23 23:59:58"
+    Execute Command               emulation RunFor "3"
+    ${t}=                         Execute Command  scu RtcTime
+    Should Be Equal               ${t.strip()}  2026-10-24 00:00:01
+    # TIM0: SE 1, MI 0, HO 0, DA 23 (day of month - 1); TIM1: MO 9 (October), YE 2026, DAWE 6 (Saturday)
+    ${tim0}=                      Read Bus  0x50004A20
+    Should Be Equal As Integers   ${tim0}  0x17000001
+    ${tim1}=                      Read Bus  0x50004A24
+    Should Be Equal As Integers   ${tim1}  0x07EA0906
+
+Should Set The RTC From TIM0 And TIM1 Writes And Count Only When Enabled
+    Create Machine                ${XMC4500_REPL}
+    # Reset: stopped at year 0
+    Execute Command               emulation RunFor "2"
+    ${t}=                         Execute Command  scu RtcTime
+    Should Be Equal               ${t.strip()}  0000-01-01 00:00:00
+    # 2026-03-15 (MO 2, DA 14) 12:34:56, then CTR.ENB with the reset DIV 0x7FFF
+    Execute Command               sysbus WriteDoubleWord 0x50004A24 0x07EA0200
+    Execute Command               sysbus WriteDoubleWord 0x50004A20 0x0E0C2238
+    Execute Command               sysbus WriteDoubleWord 0x50004A04 0x7FFF0001
+    Execute Command               emulation RunFor "2"
+    ${t}=                         Execute Command  scu RtcTime
+    Should Be Equal               ${t.strip()}  2026-03-15 12:34:58
+
 Should Receive Carriage Return Alone By Default
     Create Machine                ${XMC4500_REPL}
     Execute Command               usic0ch0 WriteChar 0x0D
