@@ -6,12 +6,16 @@ ${SCU_IDCHIP}                   0x50004004
 ${USIC0_CH0_RBUF}               0x40030054
 ${USIC0_CH0_RBUFD}              0x40030058
 
+${VADC_GLOBCFG}                  0x40004080
 ${VADC_BRSSEL0}                 0x40004180
+${VADC_BRSSEL1}                 0x40004184
 ${VADC_BRSMR}                   0x40004204
 ${VADC_G0_CHCTR1}               0x40004604
 ${VADC_G0_CHCTR2}               0x40004608
 ${VADC_G0_RES5}                 0x40004714
 ${VADC_G0_RES6}                 0x40004718
+${VADC_G1_CHCTR1}               0x40004A04
+${VADC_G1_RES5}                 0x40004B14
 
 ${CCU40_GSTAT}                  0x4000C004
 ${CCU40_GIDLS}                  0x4000C008
@@ -113,6 +117,10 @@ Load CCU40 Slice 0 Period And Compare
     # S0SE: shadow transfer for slice 0
     Execute Command               sysbus WriteDoubleWord ${CCU40_GCSS} 0x1
 
+Create Machine With Timed VADC
+    Execute Command               mach create
+    Execute Command               machine LoadPlatformDescriptionFromString "using \\"platforms/cpus/xmc4500.repl\\"; vadc: { peripheralClockFrequency: 60000000 }"
+
 Run Background Scan Of G0 Channels
     [Arguments]                   ${select}
     Execute Command               cpu IsHalted true
@@ -176,6 +184,33 @@ Should Keep SetResultValue For Undriven Channels And Convert Millivolts Against 
     Should Be Equal As Integers   ${r}  0x80000800
     ${r}=                         Read Bus  ${VADC_G0_RES6}
     Should Be Equal As Integers   ${r}  0x800004D2
+
+Should Take The Conversions Of All Groups For One Background Scan
+    Create Machine With Timed VADC
+    # DIVA = 15: fADCI = 60 MHz / 16. With the reset input class (STC 0,
+    # 12-bit) and post-calibration a conversion is 16 tADCI + 2 tADC, plus a
+    # 4-slot arbitration round: 4.37 us per channel.
+    Execute Command               sysbus WriteDoubleWord ${VADC_GLOBCFG} 0xF
+    # G0CH1 and G1CH1 -> RESREG 5 of their groups
+    Execute Command               sysbus WriteDoubleWord ${VADC_G0_CHCTR1} 0x50000
+    Execute Command               sysbus WriteDoubleWord ${VADC_G1_CHCTR1} 0x50000
+    Execute Command               vadc SetChannelValue 0 1 100
+    Execute Command               vadc SetChannelValue 1 1 200
+    Execute Command               cpu IsHalted true
+    Execute Command               sysbus WriteDoubleWord ${VADC_BRSSEL0} 0x2
+    Execute Command               sysbus WriteDoubleWord ${VADC_BRSSEL1} 0x2
+    Execute Command               sysbus WriteDoubleWord ${VADC_BRSMR} 0x201
+
+    # One channel's time has passed but not two (8.73 us): the scan is still
+    # running and RES5 holds its reset value.
+    Execute Command               emulation RunFor "0.000006"
+    ${r}=                         Read Bus  ${VADC_G0_RES5}
+    Should Be Equal As Integers   ${r}  0x80000000
+    Execute Command               emulation RunFor "0.000004"
+    ${r}=                         Read Bus  ${VADC_G0_RES5}
+    Should Be Equal As Integers   ${r}  0x80000064
+    ${r}=                         Read Bus  ${VADC_G1_RES5}
+    Should Be Equal As Integers   ${r}  0x800000C8
 
 Should Transfer CCU4 Shadow Registers Only For The Requested Slices
     Create Machine                ${XMC4500_REPL}
