@@ -42,6 +42,16 @@ Should Be Busy For The Page Program Time And Ignore Reads Meanwhile
     ${out}=                       Transfer  0x03  0x00  0x01  0x00  0x00
     Should Be Equal               ${out}  [0, 0, 0, 0, 165]
 
+Should Time A Short Program By Its Bytes
+    Create Machine With Flash     ${SPACE*4}PageProgramMicroseconds: 400\n${SPACE*4}ByteProgramFirstMicroseconds: 30\n${SPACE*4}ByteProgramNextMicroseconds: 2.5
+    Transfer                      0x06
+    # 10 bytes: 30 + 9 * 2.5 = 52.5 us, rounded up to 53
+    Transfer                      0x02  0x00  0x02  0x00  0x01  0x02  0x03  0x04  0x05  0x06  0x07  0x08  0x09  0x0A
+    Execute Command               emulation RunFor "0.00005"
+    Status Should Be              1
+    Execute Command               emulation RunFor "0.000004"
+    Status Should Be              0
+
 Should Be Busy For The Sector Erase Time
     Create Machine With Flash     ${SPACE*4}SectorEraseMicroseconds: 45000
     Transfer                      0x06
